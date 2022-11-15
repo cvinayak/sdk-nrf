@@ -24,7 +24,7 @@ ZBUS_CHAN_DEFINE(sdu_ref_chan, struct sdu_ref_msg, NULL, NULL, ZBUS_OBSERVERS_EM
 
 #define HANDLE_INVALID 0xFFFF
 
-#define HCI_ISO_BUF_PER_CHAN 2
+#define HCI_ISO_BUF_PER_CHAN 6
 
 #if defined(CONFIG_BT_ISO_MAX_CIG) && defined(CONFIG_BT_ISO_MAX_BIG)
 #define GROUP_MAX (CONFIG_BT_ISO_MAX_BIG + CONFIG_BT_ISO_MAX_CIG)
@@ -287,6 +287,7 @@ int bt_le_audio_tx_send(struct net_buf const *const audio_frame, struct le_audio
 			continue;
 		}
 
+#if defined(USE_SDC_TX_SYNC_GET)
 		ret = iso_conn_handle_set(&tx[i].cap_stream->bap_stream, &tx_info->iso_conn_handle);
 		if (ret) {
 			continue;
@@ -297,6 +298,10 @@ int bt_le_audio_tx_send(struct net_buf const *const audio_frame, struct le_audio
 		 * However, to be able to detect errors, this is called on each TX.
 		 */
 		ret = get_tx_sync_sdc(tx_info->iso_conn_handle, &tx_info->iso_tx_readback);
+#else
+		ret = bt_bap_stream_get_tx_sync(&tx[i].cap_stream->bap_stream,
+						&tx_info->iso_tx_readback);
+#endif
 		if (ret) {
 			if (ret != -ENOTCONN) {
 				LOG_WRN("Unable to get tx sync. ret: %d stream: %p", ret,
