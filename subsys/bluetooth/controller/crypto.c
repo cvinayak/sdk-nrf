@@ -15,9 +15,12 @@
 #include "nrf_errno.h"
 #include "multithreading_lock.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_KEYS)
-#define LOG_MODULE_NAME sdc_crypto
-#include <common/log.h>
+#include "zephyr/logging/log.h"
+#if IS_ENABLED(CONFIG_BT_DEBUG)
+	LOG_MODULE_REGISTER(bt_sdc_crypto, CONFIG_BT_HCI_DRIVER_LOG_LEVEL);
+#else
+	LOG_MODULE_REGISTER(bt_sdc_crypto, 0);
+#endif /* IS_ENABLED(CONFIG_BT_DEBUG) */
 
 #define BT_ECB_BLOCK_SIZE 16
 
