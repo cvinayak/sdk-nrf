@@ -21,6 +21,11 @@ LOG_MODULE_REGISTER(audio_sync_timer, CONFIG_AUDIO_SYNC_TIMER_LOG_LEVEL);
 #define AUDIO_SYNC_TIMER_NET_APP_IPC_START_EVT_CHANNEL          4
 #define AUDIO_SYNC_TIMER_NET_APP_IPC_START_EVT                  NRF_IPC_EVENT_RECEIVE_4
 
+#if defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
+#define AUDIO_SYNC_TIMER_NET_APP_IPC_STOP_EVT_CHANNEL           5
+#define AUDIO_SYNC_TIMER_NET_APP_IPC_STOP_EVT                   NRF_IPC_EVENT_RECEIVE_5
+#endif /* CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
+
 #define AUDIO_SYNC_HF_TIMER_INSTANCE_NUMBER                     1
 
 #define AUDIO_SYNC_HF_TIMER_I2S_FRAME_START_EVT_CAPTURE_CHANNEL 0
@@ -56,6 +61,9 @@ static const nrfx_rtc_config_t rtc_cfg = NRFX_RTC_DEFAULT_CONFIG;
 static uint8_t dppi_channel_i2s_frame_start;
 static uint8_t dppi_channel_curr_time_capture;
 static uint8_t dppi_channel_sync_start;
+#if defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
+static uint8_t dppi_channel_sync_stop;
+#endif /* CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
 static uint8_t dppi_channel_timer_sync_with_rtc;
 
 static volatile uint32_t num_rtc_overflows;
@@ -67,7 +75,6 @@ static uint32_t timestamp_from_rtc_and_timer_get(uint32_t overflows, uint32_t ti
 						 uint32_t remainder_us)
 {
 	const uint64_t rtc_ticks_in_femto_units = 30517578125UL;
-	const uint32_t rtc_overflow_time_us = 512000000UL;
 	uint64_t remainder_fs;
 
 	remainder_fs = (uint64_t)remainder_us * 1000000000UL;
@@ -113,8 +120,15 @@ static uint32_t timestamp_from_rtc_and_timer_get(uint32_t overflows, uint32_t ti
 	remainder_fs %= rtc_ticks_in_femto_units;
 	remainder_us = remainder_fs / 1000000000UL;
 
+#if defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
+	return ((ticks * rtc_ticks_in_femto_units) / 1000000000UL) +
+	       remainder_us;
+#else /* !CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
+	const uint32_t rtc_overflow_time_us = 512000000UL;
+
 	return ((ticks * rtc_ticks_in_femto_units) / 1000000000UL) +
 	       (overflows * rtc_overflow_time_us) + remainder_us;
+#endif /* !CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
 }
 
 uint32_t audio_sync_timer_capture(void)
@@ -327,8 +341,13 @@ static int audio_sync_timer_init(void)
 		return -ENOMEM;
 	}
 
+#if defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
+	nrf_rtc_subscribe_set(audio_sync_lf_timer_instance.p_reg, NRF_RTC_TASK_START,
+			      dppi_channel_sync_start);
+#else /* !CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
 	nrf_rtc_subscribe_set(audio_sync_lf_timer_instance.p_reg, NRF_RTC_TASK_CLEAR,
 			      dppi_channel_sync_start);
+#endif /* !CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
 
 	nrf_timer_subscribe_set(audio_sync_hf_timer_instance.p_reg, NRF_TIMER_TASK_START,
 				dppi_channel_sync_start);
@@ -345,6 +364,33 @@ static int audio_sync_timer_init(void)
 		return -EIO;
 	}
 
+#if defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
+	/* Initialize functionality for synchronization between APP and NET core */
+	ret = nrfx_dppi_channel_alloc(&dppi, &dppi_channel_sync_stop);
+	if (ret - NRFX_ERROR_BASE_NUM) {
+		LOG_ERR("nrfx DPPI channel alloc error (rtc stop): %d", ret);
+		return -ENOMEM;
+	}
+
+	nrf_ipc_receive_config_set(NRF_IPC, AUDIO_SYNC_TIMER_NET_APP_IPC_STOP_EVT_CHANNEL,
+				   NRF_IPC_CHANNEL_5);
+
+	nrf_ipc_publish_set(NRF_IPC, AUDIO_SYNC_TIMER_NET_APP_IPC_STOP_EVT,
+			    dppi_channel_sync_stop);
+
+	nrf_rtc_subscribe_set(audio_sync_lf_timer_instance.p_reg, NRF_RTC_TASK_STOP,
+			      dppi_channel_sync_stop);
+
+	nrf_timer_subscribe_set(audio_sync_hf_timer_instance.p_reg, NRF_TIMER_TASK_STOP,
+				dppi_channel_sync_stop);
+
+	ret = nrfx_dppi_channel_enable(&dppi, dppi_channel_sync_stop);
+	if (ret - NRFX_ERROR_BASE_NUM) {
+		LOG_ERR("nrfx DPPI channel enable error (timer stop): %d", ret);
+		return -EIO;
+	}
+#endif /* CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
+
 	/* Initialize functionality for synchronization between RTC and TIMER */
 	ret = nrfx_dppi_channel_alloc(&dppi, &dppi_channel_timer_sync_with_rtc);
 	if (ret - NRFX_ERROR_BASE_NUM) {
@@ -357,7 +403,9 @@ static int audio_sync_timer_init(void)
 	nrf_timer_subscribe_set(audio_sync_hf_timer_instance.p_reg, NRF_TIMER_TASK_CLEAR,
 				dppi_channel_timer_sync_with_rtc);
 
+#if !defined(CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT)
 	nrfx_rtc_enable(&audio_sync_lf_timer_instance);
+#endif /* !CONFIG_AUDIO_SYNC_TIMER_USES_RTC_BT_LL_SW_SPLIT */
 
 	LOG_DBG("Audio sync timer initialized");
 
