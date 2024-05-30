@@ -184,6 +184,17 @@ static bool device_name_check(struct bt_data *data, void *user_data)
 	return true;
 }
 
+static const char *phy2str(uint8_t phy)
+{
+	switch (phy) {
+	case BT_GAP_LE_PHY_NONE: return "No packets";
+	case BT_GAP_LE_PHY_1M: return "LE 1M";
+	case BT_GAP_LE_PHY_2M: return "LE 2M";
+	case BT_GAP_LE_PHY_CODED: return "LE Coded";
+	default: return "Unknown";
+	}
+}
+
 /**
  * @brief	Check the advertising data for the matching 'Set Identity Resolving Key' (SIRK).
  *
@@ -248,6 +259,14 @@ static bool csip_found(struct bt_data *data, void *user_data)
  */
 static void scan_recv_cb(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad)
 {
+	char addr_string[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(info->addr, addr_string, BT_ADDR_LE_STR_LEN);
+
+	LOG_INF("%s: device: %s, Pri PHY: %s, Sec PHY: %s", __func__,
+		addr_string,
+		phy2str(info->primary_phy),
+		phy2str(info->secondary_phy));
 
 	/* We only care about connectable advertisers */
 	if (!(info->adv_props & BT_GAP_ADV_PROP_CONNECTABLE)) {
