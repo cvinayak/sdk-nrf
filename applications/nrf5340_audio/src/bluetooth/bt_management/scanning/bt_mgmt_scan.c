@@ -56,7 +56,11 @@ int bt_mgmt_scan_start(uint16_t scan_intvl, uint16_t scan_win, enum bt_mgmt_scan
 	}
 
 	struct bt_le_scan_param *scan_param =
-		BT_LE_SCAN_PARAM(NRF5340_AUDIO_GATEWAY_SCAN_TYPE, BT_LE_SCAN_OPT_FILTER_DUPLICATE,
+		BT_LE_SCAN_PARAM(NRF5340_AUDIO_GATEWAY_SCAN_TYPE,
+				 BT_LE_SCAN_OPT_NONE |
+				 BT_LE_SCAN_OPT_CODED |
+				 // BT_LE_SCAN_OPT_FILTER_DUPLICATE |
+				 BT_LE_SCAN_OPT_NONE,
 				 scan_interval, scan_window);
 
 	if (type == BT_MGMT_SCAN_TYPE_CONN && IS_ENABLED(CONFIG_BT_CENTRAL)) {
