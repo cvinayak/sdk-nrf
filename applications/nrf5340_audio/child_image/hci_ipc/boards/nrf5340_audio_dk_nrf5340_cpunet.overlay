@@ -1,0 +1,27 @@
+/ {
+    nrf_radio_fem: nrf21540_fem {
+      compatible  = "nordic,nrf21540-fem";
+      tx-en-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+      rx-en-gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+      mode-gpios  = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+      pdn-gpios   = <&gpio0 29 GPIO_ACTIVE_HIGH>;
+      spi-if = <&nrf_radio_fem_spi>;
+      supply-voltage-mv = <1800>;
+ };
+};
+
+&spi0 {
+	status = "okay";
+	cs-gpios = <&gpio0 21 GPIO_ACTIVE_LOW>;
+
+	nrf_radio_fem_spi: nrf21540_fem_spi@0 {
+		compatible = "nordic,nrf21540-fem-spi";
+		status = "okay";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+	};
+};
+
+&radio {
+	fem = <&nrf_radio_fem>;
+};

@@ -1,0 +1,13 @@
+/ {
+	gpio_fwd: nrf-gpio-forwarder {
+		compatible = "nordic,nrf-gpio-forwarder";
+		status = "okay";
+		nrf21540-gpio-if {
+			gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>, 	// tx-en-gpios
+					<&gpio1 6 GPIO_ACTIVE_HIGH>, 	// rx-en-gpios
+					<&gpio1 8 GPIO_ACTIVE_HIGH>,	// mode-gpios
+					<&gpio0 29 GPIO_ACTIVE_HIGH>, 	// pdn-gpios
+					<&gpio0 21 GPIO_ACTIVE_LOW>; 	// cs-gpios
+		};
+	};
+};
