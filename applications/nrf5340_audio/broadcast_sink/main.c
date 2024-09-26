@@ -608,7 +608,9 @@ int main(void)
 
 		ret = bt_mgmt_adv_start(0, ext_adv_buf, ext_adv_buf_cnt, NULL, 0, true);
 		ERR_CHK(ret);
-	} else {
+	}
+
+	{
 		ret = bt_mgmt_scan_start(0, 0, BT_MGMT_SCAN_TYPE_BROADCAST,
 					 CONFIG_BT_AUDIO_BROADCAST_NAME, BRDCAST_ID_NOT_USED);
 		ERR_CHK_MSG(ret, "Failed to start scanning");
