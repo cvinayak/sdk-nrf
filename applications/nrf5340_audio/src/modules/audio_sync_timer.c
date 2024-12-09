@@ -60,7 +60,8 @@ static uint8_t dppi_channel_timer_sync_with_rtc;
 
 static volatile uint32_t num_rtc_overflows;
 
-static uint32_t timestamp_from_rtc_and_timer_get(uint32_t ticks, uint32_t remainder_us)
+static uint32_t timestamp_from_rtc_and_timer_get(uint32_t overflows, uint32_t ticks,
+						 uint32_t remainder_us)
 {
 	const uint64_t rtc_ticks_in_femto_units = 30517578125UL;
 	const uint32_t rtc_overflow_time_us = 512000000UL;
@@ -84,11 +85,17 @@ static uint32_t timestamp_from_rtc_and_timer_get(uint32_t ticks, uint32_t remain
 	remainder_us = remainder_fs / 1000000000UL;
 
 	return ((ticks * rtc_ticks_in_femto_units) / 1000000000UL) +
-	       (num_rtc_overflows * rtc_overflow_time_us) + remainder_us;
+	       (overflows * rtc_overflow_time_us) + remainder_us;
 }
 
 uint32_t audio_sync_timer_capture(void)
 {
+	uint32_t overflows;
+
+audio_sync_timer_capture_rtc_overflowed:
+	/* Current rtc overflows */
+	overflows = num_rtc_overflows;
+
 	/* Ensure that the follow product specification statement is handled:
 	 *
 	 * There is a delay of 6 PCLK16M periods from when the TASKS_CAPTURE[n] is triggered
@@ -120,19 +127,28 @@ uint32_t audio_sync_timer_capture(void)
 				      AUDIO_SYNC_LF_TIMER_CURR_TIME_CAPTURE_CHANNEL);
 	}
 
+	/* Check if RTC overflowed while we capture? */
+	if (overflows != num_rtc_overflows) {
+		goto audio_sync_timer_capture_rtc_overflowed;
+	}
+
 	/* Read captured TIMER value */
 	uint32_t remainder_us =
 		nrf_timer_cc_get(NRF_TIMER1, AUDIO_SYNC_HF_TIMER_CURR_TIME_CAPTURE_CHANNEL);
 
-	return timestamp_from_rtc_and_timer_get(tick, remainder_us);
+	return timestamp_from_rtc_and_timer_get(overflows, tick, remainder_us);
 }
 
 uint32_t audio_sync_timer_frame_start_capture_get(void)
 {
-	uint32_t cc_get_calls = 0;
-	uint32_t tick = 0;
 	static uint32_t prev_tick;
+	uint32_t cc_get_calls = 0;
 	uint32_t remainder_us = 0;
+	uint32_t overflows;
+	uint32_t tick = 0;
+
+	/* FIXME: Store the `num_rtc_overflows` value when I2S FRAME START does a capture */
+	overflows = num_rtc_overflows;
 
 	/* This ISR may be called before the I2S FRAMESTART event which does timer capture,
 	 * resulting in values not yet being updated in the *_cc_get calls.
@@ -166,7 +182,7 @@ uint32_t audio_sync_timer_frame_start_capture_get(void)
 
 	prev_tick = tick;
 
-	return timestamp_from_rtc_and_timer_get(tick, remainder_us);
+	return timestamp_from_rtc_and_timer_get(overflows, tick, remainder_us);
 }
 
 static void unused_timer_isr_handler(nrf_timer_event_t event_type, void *ctx)
