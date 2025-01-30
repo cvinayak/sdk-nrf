@@ -43,7 +43,7 @@ LOG_MODULE_REGISTER(u_df_scan, LOG_LEVEL_DBG);
 #define SYNC_LOST_TIMEOUT_10MS_UNIT	300
 
 // Set to the number of tags set up in the test
-#define NUM_TAGS_TO_LOOK_FOR 3
+#define NUM_TAGS_TO_LOOK_FOR 5
 
 BUILD_ASSERT(CONFIG_BT_CTLR_SYNC_PERIODIC_ADV_LIST_SIZE >= NUM_TAGS_TO_LOOK_FOR, "Periodic advertising list size must be greater than NUM_TAGS_TO_LOOK_FOR");
 BUILD_ASSERT(CONFIG_BT_PER_ADV_SYNC_MAX >= NUM_TAGS_TO_LOOK_FOR, "Maximum number of periodic advertising syncs must be greater than NUM_TAGS_TO_LOOK_FOR");
@@ -243,8 +243,8 @@ static void sync_cb(struct bt_le_per_adv_sync *sync,
 		}
 	}
 	if (synced_count == NUM_TAGS_TO_LOOK_FOR) {
-		LOG_WRN("All tags synced, if no errors restart in 5s");
-		k_work_schedule(&restart_timeout_work, K_MSEC(5000));
+		LOG_WRN("All tags synced, if no errors restart in 1s");
+		k_work_schedule(&restart_timeout_work, K_MSEC(1000));
 	}
 }
 
