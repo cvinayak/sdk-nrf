@@ -121,15 +121,18 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 			tx->len++;
 		}
 
+#if 0
 		err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
 		if (err) {
 			k_fifo_put(&fifo_uart_tx_data, tx);
 		}
+#endif
 	}
 
 	return BT_GATT_ITER_CONTINUE;
 }
 
+#if 0
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
 	ARG_UNUSED(dev);
@@ -294,6 +297,7 @@ static int uart_init(void)
 	return uart_rx_enable(uart, rx->data, sizeof(rx->data),
 			      UART_RX_TIMEOUT);
 }
+#endif
 
 static void discovery_complete(struct bt_gatt_dm *dm,
 			       void *context)
@@ -635,11 +639,13 @@ int main(void)
 		settings_load();
 	}
 
+#if 0
 	err = uart_init();
 	if (err != 0) {
 		LOG_ERR("uart_init failed (err %d)", err);
 		return 0;
 	}
+#endif
 
 	err = nus_client_init();
 	if (err != 0) {
