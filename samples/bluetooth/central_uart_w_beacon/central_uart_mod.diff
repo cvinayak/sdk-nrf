@@ -1,0 +1,63 @@
+diff --git a/prj.conf b/prj.conf
+index 6439220..0d26a7b 100644
+--- a/prj.conf
++++ b/prj.conf
+@@ -14,6 +14,7 @@ CONFIG_UART_CONSOLE=y
+ # Enable the BLE stack with GATT Client configuration
+ CONFIG_BT=y
+ CONFIG_BT_CENTRAL=y
++CONFIG_BT_BROADCASTER=y
+ CONFIG_BT_SMP=y
+ CONFIG_BT_GATT_CLIENT=y
+ 
+@@ -36,9 +37,10 @@ CONFIG_FLASH_MAP=y
+ 
+ # Config logger
+ CONFIG_LOG=y
+-CONFIG_USE_SEGGER_RTT=y
+-CONFIG_LOG_BACKEND_RTT=y
+-CONFIG_LOG_BACKEND_UART=n
+-CONFIG_LOG_PRINTK=n
+ 
+ CONFIG_ASSERT=y
++
++
++CONFIG_BT_RPA_TIMEOUT=15
++CONFIG_BT_PRIVACY=y
++CONFIG_BT_RPA_LOG_LEVEL_DBG=y
+\ No newline at end of file
+diff --git a/src/main.c b/src/main.c
+index 6245553..4410a81 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -45,6 +45,14 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
+ #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
+ #define UART_RX_TIMEOUT 50000 /* Wait for RX complete event time in microseconds. */
+ 
++#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
++#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
++
++static const struct bt_data ad[] = {
++	BT_DATA_BYTES(BT_DATA_FLAGS, BT_LE_AD_NO_BREDR),
++	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
++};
++
+ static const struct device *uart = DEVICE_DT_GET(DT_CHOSEN(nordic_nus_uart));
+ static struct k_work_delayable uart_work;
+ static struct k_work scan_work;
+@@ -627,6 +635,15 @@ int main(void)
+ 		settings_load();
+ 	}
+ 
++		/* Start advertising */
++	err = bt_le_adv_start(BT_LE_ADV_NCONN, ad, ARRAY_SIZE(ad),
++			      NULL, 0);
++	if (err) {
++		LOG_ERR("Advertising failed to start (err %d)", err);
++	}
++
++	LOG_INF("Beacon advertiser started");
++
+ 	err = uart_init();
+ 	if (err != 0) {
+ 		LOG_ERR("uart_init failed (err %d)", err);
