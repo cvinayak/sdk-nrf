@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/sys/atomic.h>
 #include <bluetooth/mesh/models.h>
 #include <dk_buttons_and_leds.h>
 #include "model_handler.h"
@@ -43,6 +44,15 @@ static struct led_ctx led_ctx[] = {
 #endif
 };
 
+static struct k_work_delayable stats_print_work;
+static atomic_t led_set_count;
+
+static void stats_print_handler(struct k_work *work)
+{
+	printk("led_set count: %d\n", (int)atomic_get(&led_set_count));
+	k_work_reschedule(&stats_print_work, K_SECONDS(5));
+}
+
 static void led_transition_start(struct led_ctx *led)
 {
 	int led_idx = led - &led_ctx[0];
@@ -71,6 +81,8 @@ static void led_set(struct bt_mesh_onoff_srv *srv, struct bt_mesh_msg_ctx *ctx,
 {
 	struct led_ctx *led = CONTAINER_OF(srv, struct led_ctx, srv);
 	int led_idx = led - &led_ctx[0];
+
+	atomic_inc(&led_set_count);
 
 	if (set->on_off == led->value) {
 		goto respond;
@@ -213,6 +225,8 @@ static const struct bt_mesh_comp comp = {
 const struct bt_mesh_comp *model_handler_init(void)
 {
 	k_work_init_delayable(&attention_blink_work, attention_blink);
+	k_work_init_delayable(&stats_print_work, stats_print_handler);
+	k_work_reschedule(&stats_print_work, K_SECONDS(5));
 
 	for (int i = 0; i < ARRAY_SIZE(led_ctx); ++i) {
 		k_work_init_delayable(&led_ctx[i].work, led_work);
