@@ -392,11 +392,14 @@ static struct bt_mesh_health_srv health_srv = {
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
+static struct bt_mesh_cfg_cli cfg_cli;
+
 static struct bt_mesh_elem elements[] = {
 #if DT_NODE_EXISTS(DT_ALIAS(sw0))
 	BT_MESH_ELEM(1,
 		     BT_MESH_MODEL_LIST(
 			     BT_MESH_MODEL_CFG_SRV,
+			     BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 			     BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
 			     BT_MESH_MODEL_ONOFF_CLI(&buttons[0].client)),
 		     BT_MESH_MODEL_NONE),
@@ -427,6 +430,62 @@ static const struct bt_mesh_comp comp = {
 	.elem = elements,
 	.elem_count = ARRAY_SIZE(elements),
 };
+
+int model_handler_self_configure(void)
+{
+	static const uint8_t net_key[16] = { [15] = 0xaa };
+	static const uint8_t dev_key[16] = { [15] = 0xcc };
+	static const uint8_t app_key[16] = { [15] = 0xbb };
+	const uint16_t net_idx = 0;
+	const uint16_t app_idx = 0;
+	const uint16_t addr = 0x0010;
+	const uint16_t elem_addr = addr;
+	struct bt_mesh_cfg_cli_mod_pub pub = {
+		.addr = POC_GROUP_ADDR,
+		.app_idx = app_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+		.transmit = BT_MESH_TRANSMIT(0, 20),
+	};
+	uint8_t status;
+	int err;
+
+	if (bt_mesh_is_provisioned()) {
+		return 0;
+	}
+
+	err = bt_mesh_provision(net_key, net_idx, 0, 0, addr, dev_key);
+	if (err) {
+		printk("Self-provision failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_app_key_add(net_idx, addr, net_idx, app_idx, app_key,
+					  &status);
+	if (err) {
+		printk("Self-config app key add failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_mod_app_bind(net_idx, addr, elem_addr, app_idx,
+					   BT_MESH_MODEL_ID_GEN_ONOFF_CLI, &status);
+	if (err) {
+		printk("Self-config model bind failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_mod_pub_set(net_idx, addr, elem_addr,
+					  BT_MESH_MODEL_ID_GEN_ONOFF_CLI, &pub,
+					  &status);
+	if (err) {
+		printk("Self-config model publish failed: %d\n", err);
+		return err;
+	}
+
+	printk("Self-provisioned switch at 0x%04x, publish group 0x%04x\n", addr,
+	       POC_GROUP_ADDR);
+
+	return 0;
+}
 
 const struct bt_mesh_comp *model_handler_init(void)
 {

@@ -190,11 +190,16 @@ static struct bt_mesh_health_srv health_srv = {
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
+static struct bt_mesh_cfg_cli cfg_cli;
+
+#define SELF_CFG_GROUP_ADDR 0xC000
+
 static struct bt_mesh_elem elements[] = {
 #if DT_NODE_EXISTS(DT_ALIAS(led0))
 	BT_MESH_ELEM(
 		1, BT_MESH_MODEL_LIST(
 			BT_MESH_MODEL_CFG_SRV,
+			BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 			BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
 			BT_MESH_MODEL_ONOFF_SRV(&led_ctx[0].srv)),
 		BT_MESH_MODEL_NONE),
@@ -221,6 +226,55 @@ static const struct bt_mesh_comp comp = {
 	.elem = elements,
 	.elem_count = ARRAY_SIZE(elements),
 };
+
+int model_handler_self_configure(void)
+{
+	static const uint8_t net_key[16] = { [15] = 0xaa };
+	static const uint8_t dev_key[16] = { [15] = 0xdd };
+	static const uint8_t app_key[16] = { [15] = 0xbb };
+	const uint16_t net_idx = 0;
+	const uint16_t app_idx = 0;
+	const uint16_t addr = 0x0001;
+	const uint16_t elem_addr = addr;
+	uint8_t status;
+	int err;
+
+	if (bt_mesh_is_provisioned()) {
+		return 0;
+	}
+
+	err = bt_mesh_provision(net_key, net_idx, 0, 0, addr, dev_key);
+	if (err) {
+		printk("Self-provision failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_app_key_add(net_idx, addr, net_idx, app_idx, app_key,
+					  &status);
+	if (err) {
+		printk("Self-config app key add failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_mod_app_bind(net_idx, addr, elem_addr, app_idx,
+					   BT_MESH_MODEL_ID_GEN_ONOFF_SRV, &status);
+	if (err) {
+		printk("Self-config model bind failed: %d\n", err);
+		return err;
+	}
+
+	err = bt_mesh_cfg_cli_mod_sub_add(net_idx, addr, elem_addr, SELF_CFG_GROUP_ADDR,
+					  BT_MESH_MODEL_ID_GEN_ONOFF_SRV, &status);
+	if (err) {
+		printk("Self-config model subscribe failed: %d\n", err);
+		return err;
+	}
+
+	printk("Self-provisioned light at 0x%04x, subscribed to group 0x%04x\n", addr,
+	       SELF_CFG_GROUP_ADDR);
+
+	return 0;
+}
 
 const struct bt_mesh_comp *model_handler_init(void)
 {

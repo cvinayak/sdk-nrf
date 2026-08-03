@@ -45,6 +45,13 @@ static void bt_ready(int err)
 		settings_load();
 	}
 
+	if (!bt_mesh_is_provisioned()) {
+		err = model_handler_self_configure();
+		if (err) {
+			printk("Self-configuration failed (err %d)\n", err);
+		}
+	}
+
 	/* This will be a no-op if settings_load() loaded provisioning info */
 	bt_mesh_prov_enable(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT);
 
@@ -64,10 +71,13 @@ int main(void)
 
 	printk("Initializing...\n");
 
-	err = bt_enable(bt_ready);
+	err = bt_enable(NULL);
 	if (err) {
 		printk("Bluetooth init failed (err %d)\n", err);
+		return 0;
 	}
+
+	bt_ready(0);
 
 	return 0;
 }
