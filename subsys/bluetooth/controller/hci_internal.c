@@ -736,6 +736,9 @@ static void vs_zephyr_supported_commands(sdc_hci_vs_zephyr_supported_commands_t 
 	cmds->write_tx_power_level = 1;
 	cmds->read_tx_power_level = 1;
 #endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
+#if defined(CONFIG_BT_OBSERVER)
+	cmds->set_le_adv_report_chan_idx_reports = 1;
+#endif /* CONFIG_BT_OBSERVER */
 }
 #endif	/* CONFIG_BT_HCI_VS */
 
@@ -1727,6 +1730,12 @@ static uint8_t vs_cmd_put(uint8_t const *const cmd, uint8_t *const raw_event_out
 		return sdc_hci_cmd_vs_zephyr_read_tx_power((void *)cmd_params,
 							   (void *)event_out_params);
 #endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
+#if defined(CONFIG_BT_OBSERVER)
+	case SDC_HCI_OPCODE_CMD_VS_ZEPHYR_SET_LE_ADV_REPORT_CHAN_IDX_REPORTS:
+		return sdc_hci_cmd_vs_zephyr_set_le_adv_report_chan_idx_reports(
+			(const sdc_hci_cmd_vs_zephyr_set_le_adv_report_chan_idx_reports_t *)
+				cmd_params);
+#endif /* CONFIG_BT_OBSERVER */
 #if CONFIG_BT_CTLR_SDC_LLPM
 	case SDC_HCI_OPCODE_CMD_VS_LLPM_MODE_SET:
 		return sdc_hci_cmd_vs_llpm_mode_set((void *)cmd_params);

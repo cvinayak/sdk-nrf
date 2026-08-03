@@ -150,6 +150,14 @@ int hci_vs_sdc_zephyr_read_tx_power(
 				   return_params, sizeof(*return_params));
 }
 
+int hci_vs_sdc_zephyr_set_le_adv_report_chan_idx_reports(
+	const sdc_hci_cmd_vs_zephyr_set_le_adv_report_chan_idx_reports_t *params)
+{
+	return hci_vs_cmd_no_rsp(SDC_HCI_OPCODE_CMD_VS_ZEPHYR_SET_LE_ADV_REPORT_CHAN_IDX_REPORTS,
+				 params,
+				 sizeof(*params));
+}
+
 int hci_vs_sdc_llpm_mode_set(const sdc_hci_cmd_vs_llpm_mode_set_t *params)
 {
 	return hci_vs_cmd_no_rsp(SDC_HCI_OPCODE_CMD_VS_LLPM_MODE_SET,

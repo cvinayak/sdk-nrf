@@ -125,6 +125,18 @@ int hci_vs_sdc_zephyr_read_tx_power(
 	const sdc_hci_cmd_vs_zephyr_read_tx_power_t *params,
 	sdc_hci_cmd_vs_zephyr_read_tx_power_return_t *return_params);
 
+/** @brief Zephyr Set LE Advertising Report Channel Index Reports.
+ *
+ * For the complete API description,
+ * see sdc_hci_cmd_vs_zephyr_set_le_adv_report_chan_idx_reports().
+ *
+ * @param[in]  params Input parameters.
+ *
+ * @return 0 on success or negative error value on failure.
+ */
+int hci_vs_sdc_zephyr_set_le_adv_report_chan_idx_reports(
+	const sdc_hci_cmd_vs_zephyr_set_le_adv_report_chan_idx_reports_t *params);
+
 /** @brief Set Low Latency Packet Mode.
  *
  * For the complete API description, see sdc_hci_cmd_vs_llpm_mode_set().
