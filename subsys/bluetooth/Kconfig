@@ -39,6 +39,13 @@ config BT_LL_SOFTDEVICE_HEADERS_INCLUDE
 config BT_LL_SOFTDEVICE_HEADERS_INCLUDE_PATH_OVERRIDE
 	bool
 
+config BT_CTLR_SDC_VS_CH_INDEX_IN_ADV_REPORT
+	bool "Vendor-specific LE Advertising Report with Channel Index"
+	help
+	  Expose the SoftDevice Controller vendor-specific
+	  Zephyr_Set_LE_Advertising_Report_Channel_Index_Reports HCI command
+	  and its VS event via the hci_vs_sdc helper API.
+
 config BT_LONG_WQ_STACK_SIZE
 	int
 	default 2100 if (BT_ECC || BT_GATT_CACHING) && SOC_SERIES_NRF54L
