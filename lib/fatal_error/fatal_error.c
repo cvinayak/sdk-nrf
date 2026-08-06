@@ -28,8 +28,6 @@ void fatal_error_handlers_run(unsigned int reason, const struct arch_esf *esf)
 
 FUNC_NORETURN void fatal_error_reset(void)
 {
-	LOG_PANIC();
-
 #if defined(CONFIG_RESET_ON_FATAL_ERROR)
 	LOG_ERR("Resetting system");
 	sys_arch_reboot(0);
