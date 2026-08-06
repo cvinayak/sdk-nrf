@@ -234,7 +234,15 @@ High-Performance Framework (HPF)
 IPC radio firmware
 ------------------
 
-|no_changes_yet_note|
+* Added:
+
+  * Reporting of the network or radio core fatal errors as a Bluetooth\ :sup:`®` Vendor Specific HCI event, also for the SoftDevice Controller.
+  * The :kconfig:option:`CONFIG_IPC_RADIO_BT_FATAL_ERROR_TEST_HOOK` test-only Kconfig option, which injects a fatal error in a selected execution context.
+
+* Fixed:
+
+  * The fatal error report, which was never sent because of an inverted buffer check and an inverted exception stack frame check.
+  * The sending of the fatal error report, which is now safe to perform from an interrupt context, bounded in time, and guarded against being preempted by a zero-latency interrupt.
 
 Matter bridge
 -------------
@@ -695,6 +703,13 @@ Other libraries
 * :ref:`lib_hw_id` library:
 
   * Added UUID support for the nRF54L Series and the nRF5340 SoC.
+
+* :ref:`lib_fatal_error` library:
+
+  * Added:
+
+    * The :file:`include/fatal_error.h` header file, which declares the :c:func:`fatal_error_reset` function.
+    * The :c:macro:`FATAL_ERROR_HANDLER_DEFINE` macro, which registers a handler that is run before the system is reset.
 
 Shell libraries
 ---------------

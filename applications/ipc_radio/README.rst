@@ -89,6 +89,24 @@ CONFIG_IPC_RADIO_BT_RPC
 
 The Bluetooth Low Energy and IEEE 802.15.4 functionalities can operate simultaneously and are only limited by available memory.
 
+Fatal error reporting
+=====================
+
+When the :kconfig:option:`CONFIG_BT_HCI_VS_FATAL_ERROR` Kconfig option is enabled, the application reports the fatal errors of the network or radio core to the host as a Bluetooth Vendor Specific HCI event.
+The kernel fatal errors are reported through a pre-reset handler of the :ref:`lib_fatal_error` library, and the Bluetooth Controller asserts are reported from the :c:func:`bt_ctlr_assert_handle` function.
+After the report is sent, the core is reset when the :kconfig:option:`CONFIG_RESET_ON_FATAL_ERROR` Kconfig option is enabled, and halted otherwise.
+
+The report is sent from the context in which the fatal error was raised, with the interrupts locked.
+Because a blocking call is not allowed in an interrupt context, the number of attempts to send the report over the IPC endpoint is bounded by the :kconfig:option:`CONFIG_IPC_RADIO_BT_FATAL_ERROR_SEND_RETRIES` and :kconfig:option:`CONFIG_IPC_RADIO_BT_FATAL_ERROR_SEND_RETRY_US` Kconfig options.
+When the report cannot be created or sent, for example when the IPC endpoint is not bound yet, the core is reset without the report instead of hanging.
+
+.. note::
+   The IPC service backends are not guaranteed to be callable from a zero-latency interrupt context.
+   Reporting a fatal error raised from a zero-latency interrupt is therefore a best-effort operation, while the reset of the core is always performed.
+
+The :kconfig:option:`CONFIG_IPC_RADIO_BT_FATAL_ERROR_TEST_HOOK` Kconfig option adds a Vendor Specific HCI command that injects a fatal error in a selected execution context.
+It is only used by the :file:`tests/bluetooth/hci_vs_fatal_error` test and must never be enabled in a production image.
+
 Sysbuild Kconfig options
 ========================
 
