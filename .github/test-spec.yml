@@ -207,6 +207,10 @@
   - "subsys/mpsl/**/*"
   - "subsys/nrf_security/**/*"
   - "drivers/mpsl/**/*"
+  - "applications/ipc_radio/**/*"
+  - "lib/fatal_error/**/*"
+  - "include/fatal_error.h"
+  - "tests/bluetooth/hci_vs_fatal_error/**/*"
 
 "CI-ble-samples-test":
   - "samples/bluetooth/central_hids/*"

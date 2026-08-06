@@ -15,6 +15,8 @@ target_sources_ifdef(CONFIG_IPC_RADIO_802154 app PRIVATE src/802154.c)
 
 if(CONFIG_IPC_RADIO_BT_HCI_IPC)
   target_sources(app PRIVATE src/bt_hci_ipc.c)
+  target_sources_ifdef(CONFIG_IPC_RADIO_BT_FATAL_ERROR_TEST_HOOK app PRIVATE
+                       src/bt_fatal_error_test.c)
 else()
   target_sources(app PRIVATE src/bt_empty.c)
 endif()

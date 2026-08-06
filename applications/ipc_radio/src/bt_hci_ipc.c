@@ -26,7 +26,10 @@
 
 #if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
 #include <zephyr/logging/log_ctrl.h>
+#include <zephyr/sys/atomic.h>
 #endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
+
+#include <fatal_error.h>
 
 #include <zephyr/logging/log.h>
 
@@ -45,9 +48,9 @@
 
 LOG_MODULE_DECLARE(ipc_radio, CONFIG_IPC_RADIO_LOG_LEVEL);
 
-#if defined(CONFIG_BT_CTLR_ASSERT_HANDLER) || defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
+#if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
 static bool ipc_ept_ready;
-#endif /* CONFIG_BT_CTLR_ASSERT_HANDLER || CONFIG_BT_HCI_VS_FATAL_ERROR */
+#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
 
 static K_SEM_DEFINE(ipc_bound_sem, 0, 1);
 
@@ -69,9 +72,6 @@ enum hci_h4_type {
 	HCI_H4_EVT = 0x04, /* tx */
 	HCI_H4_ISO = 0x05  /* rx */
 };
-
-#define HCI_FATAL_MSG true
-#define HCI_REGULAR_MSG false
 
 static struct net_buf *recv_cmd(const uint8_t *data, size_t len)
 {
@@ -169,7 +169,7 @@ static struct net_buf *recv_iso(const uint8_t *data, size_t len)
 	return buf;
 }
 
-static void send(struct net_buf *buf, bool is_fatal_err)
+static void send(struct net_buf *buf)
 {
 	uint8_t retries = 0;
 	int ret;
@@ -186,11 +186,7 @@ static void send(struct net_buf *buf, bool is_fatal_err)
 				retries = 0;
 			}
 
-			if (is_fatal_err) {
-				LOG_ERR("IPC service send error: %d", ret);
-			} else {
-				k_yield();
-			}
+			k_yield();
 		}
 	} while (ret < 0);
 
@@ -201,9 +197,9 @@ static void send(struct net_buf *buf, bool is_fatal_err)
 
 static void bound(void *priv)
 {
-#if defined(CONFIG_BT_CTLR_ASSERT_HANDLER) || defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
+#if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
 	ipc_ept_ready = true;
-#endif /* CONFIG_BT_CTLR_ASSERT_HANDLER || CONFIG_BT_HCI_VS_FATAL_ERROR */
+#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
 
 	k_sem_give(&ipc_bound_sem);
 }
@@ -309,75 +305,88 @@ static struct ipc_ept_cfg hci_ept_cfg = {
 	},
 };
 
-#if defined(CONFIG_BT_CTLR_ASSERT_HANDLER)
-__weak void bt_ctlr_assert_handle(char *file, uint32_t line)
-{
-	(void)irq_lock();
-
-	LOG_ERR("HCI Fatal error in: %s at %d.", file, line);
-
 #if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
-	if (ipc_ept_ready) {
-		struct net_buf *buf;
+/* Guard against re-entrancy of the fatal error path.
+ *
+ * Zero-latency interrupts are not masked by irq_lock(), so a fatal error raised from a
+ * zero-latency interrupt can preempt an in-progress fatal error report. The buffer pool used
+ * to create the Vendor Specific event is a dedicated single buffer pool, hence the second
+ * entry must go straight to the reset instead of corrupting the ongoing report.
+ */
+static atomic_t fatal_error_reported;
 
-		buf = hci_vs_err_assert(file, line);
-		if (!buf) {
-			send(buf, HCI_FATAL_MSG);
-		} else {
-			LOG_ERR("Can't send Fatal Error HCI event.");
+/* Send a Vendor Specific fatal error event from any context.
+ *
+ * The fatal error can be raised from a thread, an interrupt or a zero-latency interrupt
+ * context, with interrupts locked. Blocking is therefore not permitted, and the number of
+ * retries is bounded so that the network core is reset instead of hanging when the IPC
+ * endpoint does not accept the message.
+ */
+static void fatal_error_send(struct net_buf *buf)
+{
+	for (uint32_t i = 0U; i < CONFIG_IPC_RADIO_BT_FATAL_ERROR_SEND_RETRIES; i++) {
+		int ret;
+
+		ret = ipc_service_send(&hci_ept, buf->data, buf->len);
+		if (ret >= 0) {
+			return;
 		}
-	} else {
-		LOG_ERR("HCI Fatal error before IPC endpoint is ready.");
+
+		k_busy_wait(CONFIG_IPC_RADIO_BT_FATAL_ERROR_SEND_RETRY_US);
 	}
 
-#else /* !CONFIG_BT_HCI_VS_FATAL_ERROR */
-	LOG_ERR("Controller assert in: %s at %d.", file, line);
-
-#endif /* !CONFIG_BT_HCI_VS_FATAL_ERROR */
-
-#if defined(CONFIG_RESET_ON_FATAL_ERROR)
-	extern void fatal_error_reset(void);
-
-	fatal_error_reset();
-#else /* !CONFIG_RESET_ON_FATAL_ERROR */
-	for (;;) {
-	};
-#endif /* !CONFIG_RESET_ON_FATAL_ERROR */
-
-	CODE_UNREACHABLE;
+	LOG_ERR("Can't send Fatal Error HCI event.");
 }
-#endif /* CONFIG_BT_CTLR_ASSERT_HANDLER */
 
-#if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
-void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
+static void fatal_error_report(struct net_buf *buf)
+{
+	if (!atomic_cas(&fatal_error_reported, 0, 1)) {
+		LOG_ERR("Fatal Error HCI event already in progress.");
+		return;
+	}
+
+	if (!ipc_ept_ready) {
+		LOG_ERR("Fatal error before IPC endpoint is ready.");
+		return;
+	}
+
+	if (buf == NULL) {
+		LOG_ERR("Can't create Fatal Error HCI event.");
+		return;
+	}
+
+	fatal_error_send(buf);
+}
+
+static void fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
+{
+	if (esf == NULL) {
+		LOG_ERR("Fatal error %u without an exception stack frame.", reason);
+		return;
+	}
+
+	fatal_error_report(hci_vs_err_stack_frame(reason, esf));
+}
+
+FATAL_ERROR_HANDLER_DEFINE(hci_vs_fatal_error_handler, fatal_error_handler);
+#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
+
+#if defined(CONFIG_BT_CTLR_ASSERT_HANDLER)
+__weak void bt_ctlr_assert_handle(char *file, uint32_t line)
 {
 	LOG_PANIC();
 
 	(void)irq_lock();
 
-	if ((!esf) && (ipc_ept_ready)) {
-		struct net_buf *buf;
+	LOG_ERR("Controller assert in: %s at %d.", file, line);
 
-		buf = hci_vs_err_stack_frame(reason, esf);
-		if (!buf) {
-			send(buf, HCI_FATAL_MSG);
-		} else {
-			LOG_ERR("Can't create Fatal Error HCI event.");
-		}
-	}
-
-#if defined(CONFIG_RESET_ON_FATAL_ERROR)
-	extern void fatal_error_reset(void);
+#if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
+	fatal_error_report(hci_vs_err_assert(file, line));
+#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
 
 	fatal_error_reset();
-#else /* !CONFIG_RESET_ON_FATAL_ERROR */
-	for (;;) {
-	};
-#endif /* !CONFIG_RESET_ON_FATAL_ERROR */
-
-	CODE_UNREACHABLE;
 }
-#endif /* CONFIG_BT_HCI_VS_FATAL_ERROR */
+#endif /* CONFIG_BT_CTLR_ASSERT_HANDLER */
 
 int ipc_bt_init(void)
 {
@@ -415,7 +424,7 @@ int ipc_bt_process(void)
 
 	while (1) {
 		buf = k_fifo_get(&rx_queue, K_FOREVER);
-		send(buf, HCI_REGULAR_MSG);
+		send(buf);
 	}
 
 	return 0;

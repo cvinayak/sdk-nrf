@@ -7,14 +7,25 @@
 menuconfig RESET_ON_FATAL_ERROR
 	bool "Reset on fatal error"
 	select REBOOT
+	select FATAL_ERROR_HANDLERS
 	help
 	  Enable using the fatal error handler defined for Nordic DKs.
 	  When it is used, the system restarts after a fatal error.
 
-if RESET_ON_FATAL_ERROR
+config FATAL_ERROR_HANDLERS
+	bool
+	help
+	  Compile the fatal error library and install its k_sys_fatal_error_handler
+	  implementation, which runs all handlers registered with
+	  FATAL_ERROR_HANDLER_DEFINE before the system is reset or halted.
+
+	  This is a hidden symbol that is selected by RESET_ON_FATAL_ERROR and by
+	  the modules registering a fatal error handler.
+
+if FATAL_ERROR_HANDLERS
 
 module = FATAL_ERROR
 module-str = Fatal error
 source "$(ZEPHYR_BASE)/subsys/logging/Kconfig.template.log_config"
 
-endif # RESET_ON_FATAL_ERROR
+endif # FATAL_ERROR_HANDLERS
