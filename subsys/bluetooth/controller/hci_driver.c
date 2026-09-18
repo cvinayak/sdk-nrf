@@ -884,6 +884,10 @@ static void configure_supported_features(void)
 		sdc_support_qos_channel_survey();
 	}
 
+#if defined(CONFIG_BT_OBSERVER) && defined(CONFIG_BT_CTLR_SDC_VS_CH_INDEX_IN_ADV_REPORT)
+	sdc_support_ch_index_in_adv_report();
+#endif
+
 	if (IS_ENABLED(CONFIG_BT_CTLR_SDC_PAWR_ADV)) {
 		sdc_support_le_periodic_adv_with_rsp();
 	}
